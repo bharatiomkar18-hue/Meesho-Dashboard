@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Meesho × ElasticRun — E2E Shipment Ops</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div class="app" id="appRoot">
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">
+      <div class="wordmark">Meesho <span class="x">×</span> ElasticRun</div>
+      <div class="sub">E2E Shipment Ops — Tabular</div>
+    </div>
+    <div class="nav">
+      <div class="section-label">Overview</div>
+      <a href="#overview" data-nav="overview">Summary</a>
+      <div class="section-label">Metrics</div>
+      <a href="#m1" data-nav="m1"><span class="num">01</span>Pickup Efficiency</a>
+      <a href="#m2" data-nav="m2"><span class="num">02</span>Connections from FM</a>
+      <a href="#m3" data-nav="m3"><span class="num">03</span>Picked Up Pendency</a>
+      <a href="#m4" data-nav="m4"><span class="num">04</span>FDDS</a>
+      <a href="#m5" data-nav="m5"><span class="num">05</span>Pickup → RAD Speed</a>
+      <a href="#m6" data-nav="m6"><span class="num">06</span>Pickup → Customer Speed</a>
+      <a href="#m7" data-nav="m7"><span class="num">07</span>ZRTO %</a>
+      <a href="#m8" data-nav="m8"><span class="num">08</span>RTO %</a>
+      <a href="#m9" data-nav="m9"><span class="num">09</span>Shipment Life Cycle</a>
+      <a href="#m10" data-nav="m10"><span class="num">10</span>DWELL</a>
+    </div>
+    <div class="sidebar-foot">Shared dashboard — anyone with this link sees the same uploaded report.</div>
+  </aside>
+
+  <div class="main">
+    <div class="topbar" id="topbar" hidden>
+      <div class="topbar-row">
+        <button class="btn btn-primary" id="uploadBtnTop">Upload / replace shared report</button>
+        <button class="btn" id="refreshBtnTop">↻ Refresh</button>
+        <button class="btn" id="sidebarToggleBtn" type="button" aria-expanded="true">◂ Hide index</button>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        <div class="file-chip" id="fileChip" hidden>
+          <span class="dot"></span>
+          <span><strong id="fileNameLbl">—</strong></span>
+          <span id="fileMetaLbl" class="mono" style="color:var(--ink-muted)"></span>
+        </div>
+        <span class="sync-chip" id="syncChip" hidden></span>
+      </div>
+      <div class="topbar-row filters">
+        <span class="filter-label">Manifested date</span>
+        <div class="pillrow" id="datePresets">
+          <button class="pill active" data-range="all">All</button>
+          <button class="pill" data-range="7">7d</button>
+          <button class="pill" data-range="14">14d</button>
+          <button class="pill" data-range="30">30d</button>
+        </div>
+        <input type="date" class="dateinput" id="dateFrom">
+        <span style="color:var(--ink-muted)">→</span>
+        <input type="date" class="dateinput" id="dateTo">
+        <span class="filter-label" style="margin-left:6px">First Mile</span>
+        <select id="fmFilter"><option value="">All FM stations</option></select>
+        <span class="filter-label">Last Mile</span>
+        <select id="lmFilter"><option value="">All LM stations</option></select>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="loading-state" id="loadingState">
+        <div class="loading-spinner" aria-hidden="true"></div>
+        <div>Loading the shared dashboard…</div>
+      </div>
+
+      <div class="empty" id="emptyState" hidden>
+        <h2>No shared report uploaded yet</h2>
+        <p>Be the first to upload the 4500 shipment status report — once uploaded, everyone who opens this link sees the same numbers. Uploading replaces the shared dataset for all viewers and requires the shared upload password. This view is tables only (no charts), with conditional formatting to call out defects, and every table is ready to copy straight into an email.</p>
+        <button class="btn btn-primary" id="uploadBtnEmpty">Choose file</button>
+        <div class="req">
+          <strong>Expects columns like:</strong> Manifested Date, Picked-up Date and Time, Status, Network Arrival Date, RAD Date and Time, First Out On Road Date, Delivered Date, First/Second/Third Attempt Date, RTO Intitate Date, RTO Delivered Date, First Mile Station, Last Mile Station, Delivery Slot End Timestamp, Current Station — the standard "Query result" sheet from the 4500 report. Column order doesn't matter.
+        </div>
+      </div>
+
+      <div id="dashboardBody" hidden>
+        <section id="overview" class="metric" style="scroll-margin-top:88px;">
+          <div class="metric-head">
+            <div class="metric-title"><h3>Summary</h3></div>
+            <div style="display:flex; gap:8px; flex:none;">
+              <button class="btn-emailcopy" type="button" data-copy-section="overview">Copy for email</button>
+              <button class="btn-toggle" type="button" id="summaryToggleBtn" aria-expanded="true">▴ Minimize</button>
+            </div>
+          </div>
+          <div id="summaryBody">
+            <div class="metric-desc" id="overviewSub">Headline numbers across the current filtered slice. Status pill shows whether each metric is within its defect threshold.</div>
+            <div class="table-scroll" style="margin-top:14px;">
+              <table class="kpitable" id="kpiTable"></table>
+            </div>
+            <div id="warnArea" style="margin-top:14px;"></div>
+          </div>
+        </section>
+
+        <!-- metric sections injected by JS -->
+        <div id="metricSections"></div>
+
+        <div class="footnote" id="footnote">Shared dataset · nothing shown here is recomputed locally-only — everyone on this link sees the same tables · refresh the page any time to pull the latest shared upload</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<!-- Password modal (upload gate) -->
+<div class="pw-backdrop" id="pwBackdrop" hidden>
+  <div class="pw-panel" role="dialog" aria-modal="true" aria-label="Shared upload password">
+    <h4>Confirm shared upload</h4>
+    <p>This will replace the dataset every viewer of this dashboard sees. Enter the shared upload password to continue.</p>
+    <input type="password" id="pwInput" placeholder="Upload password" autocomplete="off">
+    <div class="pw-error" id="pwError"></div>
+    <div class="pw-actions">
+      <button class="btn" type="button" id="pwCancelBtn">Cancel</button>
+      <button class="btn btn-primary" type="button" id="pwConfirmBtn">Upload &amp; share</button>
+    </div>
+  </div>
+</div>
+
+<script src="xlsx.core.min.js"></script>
+<script src="engine.js"></script>
+<script src="app3.js"></script>
+</body>
+</html>

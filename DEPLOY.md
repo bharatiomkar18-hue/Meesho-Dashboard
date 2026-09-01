@@ -61,20 +61,36 @@ This is the one environment variable you must add by hand:
    environment variables at deploy time, so a plain redeploy is needed
    after adding or changing this one).
 
-That's the only secret this project needs. **Netlify Blobs — the storage
-that holds the uploaded dataset — needs no separate token or account.**
-When your `data.js` / `upload.js` functions run on Netlify's own
-infrastructure, they automatically get permission to read/write your
-site's Blob store. There's nothing to sign up for and nothing else to add
-under Environment variables for storage to work.
+That's normally the only secret this project needs. **Netlify Blobs — the
+storage that holds the uploaded dataset — usually needs no separate token
+or account.** When your `data.js` / `upload.js` functions run on Netlify's
+own infrastructure, they automatically get permission to read/write your
+site's Blob store, with nothing else to add under Environment variables.
 
-(The only case where you'd ever need a *separate* Netlify token is if you
-wanted to read or write that same Blob store from somewhere other than
-this site's own Functions — e.g. a local script on your laptop. That would
-need a personal access token from **Netlify → User settings → Applications
-→ New access token**, plus your Site ID from **Site configuration →
-General → Site details**. Nobody needs this for the dashboard itself to
-work — skip it unless you're building something extra.)
+### If you see a Blobs error anyway (e.g. "MissingBlobsEnvironmentError")
+
+Some deploy setups — a manual/drag-and-drop deploy instead of a
+GitHub-linked one, certain CI pipelines, or self-hosted/Enterprise
+Netlify — don't automatically inject Blobs access into the functions.
+`data.js` and `upload.js` both fall back to using an explicit Site ID and
+token if you provide them, so add these two extra environment variables
+the same way you added `UPLOAD_PASSWORD` above:
+
+1. **Key:** `BLOBS_SITE_ID` — **Value:** your Site ID, found at
+   **Site configuration → General → Site details → Site ID**.
+2. **Key:** `BLOBS_TOKEN` — **Value:** a Personal Access Token, created at
+   **Netlify → User settings → Applications → New access token** (give it
+   a name like "dashboard blobs access"; copy the token immediately, it's
+   only shown once).
+3. Save both, then **Deploys → Trigger deploy → Deploy site** so the
+   functions pick them up.
+
+Treat `BLOBS_TOKEN` like a password — it grants read/write access to your
+Netlify account's storage, so only add it as an environment variable
+(never commit it to the repo).
+
+If `data.js`/`upload.js` work fine without these two variables, there's no
+need to add them — the automatic wiring is already handling it.
 
 ## 4. Try it
 
