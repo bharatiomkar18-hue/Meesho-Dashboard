@@ -456,27 +456,73 @@
     });
   }
 
-  async function apiGetSharedData(){
-    const res = await fetch('/api/data', { headers: { 'Accept': 'application/json' } });
-    let body;
-    try{ body = await res.json(); } catch(e){ throw new Error('The server sent back something that wasn\'t valid JSON.'); }
-    if (!res.ok) throw new Error(body && body.error ? body.error : `Server returned ${res.status}`);
-    return body;
-  }
-  async function apiUpload(password, fileName, missingColumns, rows){
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password, fileName, missingColumns, rows: serializeRowsForUpload(rows) }),
-    });
-    let body;
-    try{ body = await res.json(); } catch(e){ body = null; }
-    if (!res.ok){
-      const msg = body && body.error ? body.error : `Server returned ${res.status}`;
-      const err = new Error(msg); err.status = res.status; throw err;
-    }
-    return body;
-  }
+/* -----------------------------------------------------------------------
+     Gzip helpers -- large reports (tens of thousands of rows) can produce a
+          JSON payload bigger than Netlify Functions' ~6 MB request/response
+               limit. Rather than fight binary-body proxy quirks, both directions use
+                    a plain-text envelope: { gzipBase64: "<base64 of gzip bytes>" }. That's
+                         valid JSON either way, so it's always safe to send/receive as text.
+                              Uses the browser's native CompressionStream/DecompressionStream (no
+                                   external library, no build step) -- supported in all current Chrome,
+                                        Edge, Firefox and Safari. Falls back to plain JSON if unsupported,
+                                             which still works for smaller reports.
+                                                  ----------------------------------------------------------------------- */
+     const CAN_COMPRESS = typeof CompressionStream !== 'undefined';
+     const CAN_DECOMPRESS = typeof DecompressionStream !== 'undefined';
+
+     function bytesToBase64(bytes){
+            let binary = '';
+            const chunk = 0x8000;
+            for (let i = 0; i < bytes.length; i += chunk){
+                     binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+            }
+            return btoa(binary);
+     }
+     function base64ToBytes(b64){
+            const binary = atob(b64);
+            const bytes = new Uint8Array(binary.length);
+            for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+            return bytes;
+     }
+     async function gzipBase64JSON(obj){
+            const json = JSON.stringify(obj);
+            if (!CAN_COMPRESS) return { body: json, gzipped: false };
+            const stream = new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'));
+            const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+            return { body: JSON.stringify({ gzipBase64: bytesToBase64(bytes) }), gzipped: true };
+     }
+     async function gunzipBase64JSON(b64){
+            if (!CAN_DECOMPRESS){
+                     throw new Error('This browser can\'t decompress the shared dataset -- please use a current version of Chrome, Edge, Firefox, or Safari.');
+            }
+            const stream = new Blob([base64ToBytes(b64)]).stream().pipeThrough(new DecompressionStream('gzip'));
+            const text = await new Response(stream).text();
+            return JSON.parse(text);
+     }
+
+     async function apiGetSharedData(){
+            const res = await fetch('/api/data', { headers: { 'Accept': 'application/json' } });
+            let body;
+            try{ body = await res.json(); } catch(e){ throw new Error('The server sent back something that wasn\'t valid JSON.'); }
+            if (!res.ok) throw new Error(body && body.error ? body.error : `Server returned ${res.status}`);
+            if (body && typeof body.gzipBase64 === 'string') body = await gunzipBase64JSON(body.gzipBase64);
+            return body;
+     }
+     async function apiUpload(password, fileName, missingColumns, rows){
+            const { body: reqBody } = await gzipBase64JSON({ password, fileName, missingColumns, rows: serializeRowsForUpload(rows) });
+            const res = await fetch('/api/upload', {
+                     method: 'POST',
+                     headers: { 'Content-Type': 'application/json' },
+                     body: reqBody,
+            });
+            let body;
+            try{ body = await res.json(); } catch(e){ body = null; }
+            if (!res.ok){
+                     const msg = body && body.error ? body.error : `Server returned ${res.status}`;
+                     const err = new Error(msg); err.status = res.status; throw err;
+            }
+            return body;
+     }
 
   /* =======================================================================
      Sync status chip — transient feedback for load/refresh/upload.
