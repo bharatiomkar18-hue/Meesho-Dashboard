@@ -134,6 +134,20 @@ Change site name**, or attach a real domain there too).
 - If two people upload within moments of each other, the second upload
   simply wins — there's no merge or conflict warning.
 
+## Large reports (413 "Payload Too Large")
+
+Netlify Functions cap request and response bodies at about 6 MB. A report
+with several thousand rows and many columns can produce a raw JSON payload
+close to or over that limit, which used to show up as a 413 error on
+upload. Both data.js/upload.js and app3.js now gzip-compress the
+payload in the browser before sending it (and gzip the response back down
+too), which shrinks a typical report by ~20x -- plenty of headroom even as
+your live report grows into the tens of thousands of rows. Nothing to
+configure; this happens automatically in any current version of Chrome,
+Edge, Firefox, or Safari. Older browsers without compression support fall
+back to sending plain JSON, so very large reports could still hit the
+limit there -- if that happens, update the browser doing the uploading.
+
 ## Local testing (optional)
 
 `netlify dev` normally lets you run the whole site (including the
