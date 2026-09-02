@@ -2,14 +2,15 @@
 // Returns the currently-stored shared dataset (or { empty: true } if nobody
 // has uploaded one yet). Read-only, no password required — viewing the
 // dashboard is open to anyone with the link.
-const { getStore } = require("@netlify/blobs");
+const { connectLambda, getStore } = require("@netlify/blobs");
 
 const STORE_NAME = "meesho-elasticrun-dashboard";
 const KEY = "current";
 
-exports.handler = async () => {
+exports.handler = async (event) => {
   const headers = { "Content-Type": "application/json", "Cache-Control": "no-store" };
   try {
+    if (event && event.blobs) connectLambda(event);
     const store = getStore(STORE_NAME);
     const record = await store.get(KEY, { type: "json" });
     if (!record) {

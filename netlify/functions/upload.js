@@ -3,7 +3,7 @@
 // Checks the shared password (set as the UPLOAD_PASSWORD environment
 // variable in Netlify — see DEPLOY.md) and, if it matches, overwrites the
 // single shared dataset everyone else reads from /api/data.
-const { getStore } = require("@netlify/blobs");
+const { connectLambda, getStore } = require("@netlify/blobs");
 
 const STORE_NAME = "meesho-elasticrun-dashboard";
 const KEY = "current";
@@ -54,6 +54,7 @@ exports.handler = async (event) => {
   };
 
   try {
+    if (event && event.blobs) connectLambda(event);
     const store = getStore(STORE_NAME);
     await store.setJSON(KEY, record);
     return {
